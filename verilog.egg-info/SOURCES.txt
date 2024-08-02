@@ -1,5 +1,6 @@
 README.md
 cli.py
+push_to_db.py
 setup.py
 verilog.egg-info/PKG-INFO
 verilog.egg-info/SOURCES.txt

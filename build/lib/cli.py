@@ -4,6 +4,9 @@ import os
 import random
 import string
 from urllib.parse import urlparse
+from push_to_db import embed_library_from_repo, create_index
+from elasticsearch import Elasticsearch
+import shutil
 
 # verilog install [lib_name]
 # verilog add [REPO_URL] as [lib_name]
@@ -42,7 +45,42 @@ def download_item(api_url, item, current_dir):
 @app.command()
 def install(lib: str):
     """Install a library."""
-    typer.echo(f"Installing library: {lib}")
+    es_client = Elasticsearch(
+        "https://69bc680d7967407080cd9090e3c12a25.us-central1.gcp.cloud.es.io:443",
+        api_key="UWdUV0M1RUJjd1F5SmpPNHRJVlU6Ui1tenFqaUFReFc5d0k2ODJSVnBldw=="
+    )
+
+    # Search for documents in the specified library
+    response = es_client.search(
+        index=lib,
+        body={
+            "query": {"match_all": {}},
+            "size": 10000  # Adjust the size as needed
+        }
+    )
+
+    # Create a base directory for the library
+    base_dir = os.path.join("lib", lib)
+    os.makedirs(base_dir, exist_ok=True)
+
+    # Download each document
+    for doc in response['hits']['hits']:
+        doc_source = doc['_source']
+        file_name = doc_source['name']
+        chunk_id = doc_source['chunk_id']
+        code = doc_source['code']
+
+        # Create a subdirectory for each file within the base directory
+        file_dir = os.path.join(base_dir, file_name)
+        os.makedirs(file_dir, exist_ok=True)
+
+        # Write the code chunk to a file
+        chunk_file_path = os.path.join(file_dir, f"{file_name}_chunk_{chunk_id}.v")
+        with open(chunk_file_path, 'w') as f:
+            f.write(code)
+
+        typer.echo(f"Downloaded: {chunk_file_path}")
+    typer.echo(f"Successfully installed library: {lib}")
 
 @app.command()
 def load(repo: str):
@@ -52,32 +90,42 @@ def load(repo: str):
     path_parts = parsed_url.path.strip('/').split('/')
     owner, repo_name = path_parts[0], path_parts[1]
 
-    # Construct the API URL
-    api_url = f"https://api.github.com/repos/{owner}/{repo_name}/contents"
+    es_client = Elasticsearch(
+        "https://69bc680d7967407080cd9090e3c12a25.us-central1.gcp.cloud.es.io:443",
+        api_key="UWdUV0M1RUJjd1F5SmpPNHRJVlU6Ui1tenFqaUFReFc5d0k2ODJSVnBldw=="
+    )
+    mapping = {
+        "mappings": {
+            "properties": {
+                "name": {"type": "keyword"},
+                "code": {"type": "text"},
+                "embedding": {
+                    "type": "dense_vector",
+                    "dims": 1536,
+                    "index": True,
+                    "similarity": "cosine"
+                }
+            }
+        }
+    }
 
-    # Send a GET request to the GitHub API
-    response = requests.get(api_url)
-    
-    if response.status_code == 200:
-        contents = response.json()
-        
-        # Create a directory for the library
-        # random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-        # lib_dir = f"{repo_name}_{random_suffix}"
-        lib_dir = repo_name
-        os.makedirs(lib_dir, exist_ok=True)
-        
-        # Download each file
-        for item in contents:
-            download_item(api_url, item, lib_dir)
-        
-        typer.echo(f"Repository contents downloaded to directory: {lib_dir}")
-    else:
-        typer.echo("Failed to fetch repository contents")
+    with typer.progressbar(length=1, label="Creating index") as progress:
+        create_index(es_client, repo_name, mapping)
+        progress.update(1)
+    embed_library_from_repo(owner, repo_name, es_client)
+
+    typer.echo(f"Loaded {repo_name} into Instachip successfully.")
+
 
 @app.command()
 def uninstall(lib: str):
     """Uninstall a library."""
+    lib_dir = os.path.join("lib", lib)
+    if os.path.exists(lib_dir) and os.path.isdir(lib_dir):
+        shutil.rmtree(lib_dir)
+        typer.echo(f"Removed directory: {lib_dir}")
+    else:
+        typer.echo(f"Directory {lib_dir} does not exist.")
     typer.echo(f"Uninstalling library: {lib}")
 
 if __name__ == "__main__":

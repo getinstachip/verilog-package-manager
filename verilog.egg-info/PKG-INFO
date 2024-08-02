@@ -2,3 +2,4 @@ Metadata-Version: 2.1
 Name: verilog
 Version: 0.1
 Requires-Dist: typer[all]
+Requires-Dist: python-dotenv
