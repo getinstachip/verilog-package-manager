@@ -1,0 +1,9 @@
+README.md
+cli.py
+setup.py
+verilog.egg-info/PKG-INFO
+verilog.egg-info/SOURCES.txt
+verilog.egg-info/dependency_links.txt
+verilog.egg-info/entry_points.txt
+verilog.egg-info/requires.txt
+verilog.egg-info/top_level.txt
