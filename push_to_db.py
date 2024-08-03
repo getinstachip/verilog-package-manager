@@ -9,7 +9,8 @@ import requests
 import typer
 
 load_dotenv()
-oai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# oai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+oai = OpenAI(api_key="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")
 
 def generate_embedding(code_snippet: str) -> List[float]:
     response = oai.embeddings.create(
